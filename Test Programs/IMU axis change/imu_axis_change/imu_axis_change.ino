@@ -9,6 +9,7 @@
 
 //#include <PDQ_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Battery.h>
 
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
@@ -16,7 +17,7 @@
 // AD0 high = 0x69
 MPU6050 mpu;
 
-#define INTERRUPT_PIN D8  // use pin 2 on Arduino Uno & most boards
+#define INTERRUPT_PIN 2  // use pin 2 on Arduino Uno & most boards
 
 #define LED_PIN 13
 
@@ -56,6 +57,13 @@ void dmpDataReady() {
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 
+//our range for lipo voltage is 4.2-3.4V, after 3.4 the wemos LDO will become unreliable
+//so we should recharge
+Battery battery(3400, 4200, A0);
+const unsigned long batteryUpdateTime = 5000; //how often we update the battery level in ms
+unsigned long prevBatReadTime = 0; //the last time we read the battery in ms
+uint8_t batteryLvl; //the battery percentage
+
 void setup() {
 
   pinMode(LED_PIN, OUTPUT);
@@ -66,6 +74,16 @@ void setup() {
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
   Fastwire::setup(400, true);
 #endif
+
+// ================================================================
+  // ===                  BATTERY CONFIG                          ===
+  // ================================================================
+  pinMode(A0, INPUT); //our analog input pin connected to the battery
+  //start a battery object with 4.2 max votage using sigmodal mapping for lipos
+  //the wemos already has a voltage divider on A0
+  //our inclusion of a 100K resistor brings the divider ratio to exactly 1.0
+  battery.begin(4200, 1.0, &sigmoidal);
+  batteryLvl = battery.level(); //get an inital reading
 
   // initialize serial communication
   // (115200 chosen because it is required for Teapot Demo output, but it's
@@ -131,7 +149,7 @@ void setup() {
 }
 
 void loop() {
-  int mode = 2;
+  int mode = 1;
   if (mpuInterrupt) {
     GetDMP();
 
